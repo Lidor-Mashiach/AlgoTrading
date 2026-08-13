@@ -1,0 +1,61 @@
+# ============================================================================
+# .gitignore for Algo-Trade
+# Sections by scope: General / AI / Backend / CLI.
+# ============================================================================
+
+# ----- General (all modules) -----------------------------------------------
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*.pyo
+# Virtual environments
+.venv/
+venv/
+env/
+# Secrets and environment files
+.env
+*.env
+# Jupyter
+.ipynb_checkpoints/
+# OS junk
+.DS_Store
+Thumbs.db
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+
+# ----- AI (ai/) ------------------------------------------------------------
+# Regenerated internals, do NOT commit
+ai/dev_models/*
+!ai/dev_models/.gitkeep
+ai/data_store/*
+!ai/data_store/.gitkeep
+ai/Inference_models/*
+!ai/Inference_models/.gitkeep
+ai/results/*
+!ai/results/.gitkeep
+ai/tuning/studies/*
+!ai/tuning/studies/.gitkeep
+ai/runners/.routine.lock
+
+
+# ----- Backend (backend/) --------------------------------------------------
+# SQLite databases and cached market data
+*.db
+
+# Runtime state written by the backend sync
+backend/sync_status.json
+
+*.sqlite
+*.sqlite3
+
+# ----- CLI (gui/ : React / Vite / Node) ------------------------------------
+node_modules/
+gui/dist/
+gui/.vite-cache/
+.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+

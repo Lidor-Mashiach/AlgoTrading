@@ -1,0 +1,28 @@
+# ============================================================================
+# Python requirements for Algo-Trade.
+# Sections by module: shared / AI / Backend / CLI.
+# Verified with an AST scan of every .py in the repo (any depth, not regex).
+#
+# The CLI (gui/) is a React + Vite + Tailwind app. Its packages live in
+# gui/package.json and are NOT pip dependencies; they are listed at the bottom
+# only as a reference comment.
+# ============================================================================
+
+# --- shared (AI, Backend) ---
+pandas                    # dataframes                                  (ai, backend)
+
+# --- AI (ai/) ---
+numpy                     # numerics
+lightgbm                  # quantile-regression boosters (the core model)
+scikit-learn              # mutual information for EDA
+optuna                    # hyperparameter tuning (ai/tuning/)
+matplotlib                # non-interactive figures (EDA and evaluation)
+pyarrow                   # parquet intermediate store (falls back to pickle if missing)
+# torch                   # OPTIONAL: only a friendly GPU name in logs (ai/utils/gpu.py)
+
+# --- Backend (backend/) ---
+yfinance                  # end-of-day market-data source
+fastapi                  # REST API framework
+uvicorn                  # ASGI server for FastAPI
+
+# --- CLI (gui/): JavaScript / Node, managed in gui/package.json (NOT pip) --- instead use npm install

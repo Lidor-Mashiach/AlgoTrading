@@ -1,0 +1,18 @@
+{
+  "prediction_settings": {
+    "tickers": ["SPY", "QQQ", "TA35.TA", "^TA125.TA", "^GDAXI", "^DJI"],
+    "supporting_tickers": ["^VIX", "^TNX", "^IRX", "DX-Y.NYB"],
+    "currencies": ["USDILS=X", "EURILS=X", "USDEUR=X", "EURUSD=X"],
+    "horizons": ["daily", "weekly", "monthly"],
+    "periods": [20, 50, 100, 150, 200],
+    "db_name": "backend/database.db",
+    "sync_time": {
+      "hour": 7,
+      "minute": 0
+    }
+  },
+  "rest_api_settings": {
+    "host": "127.0.0.1",
+    "port": 8000
+  }
+}

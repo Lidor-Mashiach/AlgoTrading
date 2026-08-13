@@ -1,0 +1,18 @@
+{
+  "max_depth": 4,
+  "learning_rate": 0.053422514434934676,
+  "num_leaves": 11,
+  "min_child_samples": 65,
+  "min_split_gain": 0.11340670784152725,
+  "subsample": 0.643412542615597,
+  "bagging_freq": 10,
+  "colsample_bytree": 0.6666063719326331,
+  "max_bin": 250,
+  "reg_alpha": 0.0023852672046429414,
+  "reg_lambda": 0.028019836769901434,
+  "path_smooth": 43.99910223135473,
+  "extra_trees": true,
+  "n_estimators": 122,
+  "n_features": 46,
+  "objective": "pinball-scaled-by-realized_vol_daily"
+}

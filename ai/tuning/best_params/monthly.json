@@ -1,0 +1,18 @@
+{
+  "max_depth": 6,
+  "learning_rate": 0.04439483545952967,
+  "num_leaves": 40,
+  "min_child_samples": 364,
+  "min_split_gain": 1.1047414900295314,
+  "subsample": 0.9353786896382615,
+  "bagging_freq": 5,
+  "colsample_bytree": 0.9479889406315027,
+  "max_bin": 506,
+  "reg_alpha": 22.441140770222873,
+  "reg_lambda": 0.20988349342966447,
+  "path_smooth": 7.234093295496082,
+  "extra_trees": true,
+  "n_estimators": 93,
+  "n_features": 38,
+  "objective": "pinball-scaled-by-vix_monthly_last"
+}
