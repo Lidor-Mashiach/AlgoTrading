@@ -48,19 +48,17 @@ For every (ticker, horizon) pair the engine returns a band, not a point:
 # 1. Python environment
 pip install -r requirements.txt
 
-# 2. Bring the whole system up
-python bootstrap.py
+# 2. Run it
+python main.py
 ```
 
-On a fresh machine `bootstrap.py` syncs history back to 1990, builds all nine models from scratch (~2 minutes), and starts the REST API. On later launches it goes straight to serving.
+`main.py` is the entry point. It starts the backend, serves the front end and opens a dedicated window on it. Closing that window stops everything.
 
-The front end is a separate Node project:
+On a fresh machine the first run syncs history back to 1990 and builds all nine models before a forecast can be served. The interface opens as soon as the database is populated, and waits for the rest on its own.
 
-```bash
-cd gui && npm install && npm run dev
-```
+**Requirements:** Python 3.11+. Nothing else.
 
-**Requirements:** Python 3.11+, and Node 18+ for the front end.
+> Node is **not** needed to run the system. The built front end is committed under `gui/dist/` and served by `gui/serve.py` using the standard library alone. Node is only needed to change the front end, and `main.py` switches to the Vite dev server by itself when `gui/node_modules` is present.
 
 ---
 
@@ -96,8 +94,9 @@ The GUI never touches the AI directly. Everything crosses the boundary through *
 |---|---|---|
 | [`ai/`](ai/docs/README.md) | Lidor | Feature engineering, training, tuning, inference |
 | [`backend/`](backend/docs/README.md) | Eran | Market-data sync, SQLite store, REST API, AI bridge |
-| [`gui/`](gui/README.md) | Liel | React + Vite front end |
-| `bootstrap.py` | — | Single entry point: starts the sync service and the REST API |
+| [`gui/`](gui/README.md) | Lidor | Single page front end, React and Vite |
+| `main.py` | — | Entry point: starts the backend, serves the GUI, opens the window |
+| `bootstrap.py` | — | Starts the sync service and the REST API. Called by `main.py` |
 | `requirements.txt` | — | Python dependencies for `ai/` and `backend/` |
 
 Feature definitions are documented **separately per side**, because the two sides compute different things:
@@ -112,7 +111,7 @@ The REST surface is listed in [`backend/docs/RESTAPI.md`](backend/docs/RESTAPI.m
 
 ## 🔄 Lifecycle
 
-`bootstrap.py` launches two processes and then blocks on the API.
+`main.py` starts `bootstrap.py`, waits for the front end to answer, then opens the window and blocks until it closes. `bootstrap.py` itself launches two processes.
 
 ### 1. `backend/sync_main.py` — the 24/7 service
 
@@ -125,6 +124,10 @@ The REST surface is listed in [`backend/docs/RESTAPI.md`](backend/docs/RESTAPI.m
 ### 2. `backend/rest_main.py` — the API
 
 Comes up immediately, even while models are still training. A forecast request during training returns `{"status": "training"}` rather than a stale answer.
+
+### 3. `gui/serve.py` or the Vite dev server — the front end
+
+Serves the interface on port 5173 and forwards `/api` to the REST API, so the page and its data share one origin and no cross origin request is ever made. `main.py` picks the Vite dev server when `gui/node_modules` exists, and `gui/serve.py` otherwise.
 
 ### What `train_if_needed()` decides
 
@@ -150,6 +153,12 @@ python bootstrap.py
 
 # Force the GPU for LightGBM (CPU is faster at this data scale)
 ALGOTRADE_LGBM_DEVICE=gpu python ai/runners/run_pipeline.py
+
+# Front end: install once, then develop with hot reload
+cd gui && npm install && npm run dev
+
+# Front end: rebuild the committed output after changing src/
+cd gui && npm run build
 ```
 
 Hyperparameter tuning runs on the BGU SLURM cluster — see [`ai/docs/README.md`](ai/docs/README.md#-hyperparameter-tuning).
@@ -169,8 +178,11 @@ Rebuilt by the code, kept out of version control:
 | `ai/Inference_models/` | The production boosters actually served |
 | `ai/results/` | Metrics, plots, reports |
 | `ai/tuning/studies/` | Optuna SQLite studies (per-machine) |
+| `gui/node_modules/` | Front end dependencies, restored by `npm install` |
 
 `ai/tuning/best_params/*.json` **is** committed, so the whole team gets the tuned model without re-running Optuna.
+
+`gui/dist/` **is** committed for the same reason: it is what lets the system run on a machine with no Node installed. Rebuild it with `npm run build` inside `gui/` after changing the front end, and commit the result.
 
 ---
 
@@ -180,6 +192,6 @@ Rebuilt by the code, kept out of version control:
 |---|---|---|
 | AI / modeling | **Lidor** | [`ai/docs/README.md`](ai/docs/README.md) · [`RESULTS.md`](ai/docs/RESULTS.md) |
 | Backend / data | **Eran** | [`backend/docs/README.md`](backend/docs/README.md) |
-| GUI / front end | **Liel** | [`gui/README.md`](gui/README.md) |
+| GUI / front end | **Lidor** | [`gui/README.md`](gui/README.md) |
 
 Course project — *AlgoTrade*, Ben-Gurion University.

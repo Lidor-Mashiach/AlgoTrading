@@ -1,6 +1,6 @@
 # ============================================================================
 # .gitignore for Algo-Trade
-# Sections by scope: General / AI / Backend / CLI.
+# Sections by scope: General / AI / Backend / GUI.
 # ============================================================================
 
 # ----- General (all modules) -----------------------------------------------
@@ -50,9 +50,8 @@ backend/sync_status.json
 *.sqlite
 *.sqlite3
 
-# ----- CLI (gui/ : React / Vite / Node) ------------------------------------
+# -----GUI (gui/ ) ------------------------------------
 node_modules/
-gui/dist/
 gui/.vite-cache/
 .vite/
 npm-debug.log*

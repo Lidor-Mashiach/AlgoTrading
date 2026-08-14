@@ -1,0 +1,491 @@
+/*
+  Design tokens.
+
+  Two surfaces, on purpose. The shell is a slate blue that stays out of the way and the
+  chart is white. The chart is the brightest thing on the page, so the eye lands on the
+  forecast before anything else, and every other element is deliberately quiet.
+
+  The shell used to be much darker. Combined with grey secondary text it pushed several
+  labels close to unreadable, so the whole scale was lifted: the background is lighter,
+  the muted tone is lighter still, and the gap between them is wider than it was. The
+  only strongly coloured elements left are up and down, which carry meaning rather than
+  decoration.
+*/
+:root {
+  --bg:          #222834;
+  --surface:     #2b3240;
+  --surface-2:   #333b4b;
+  --surface-3:   #3d4658;
+  --line:        #3a4353;
+  --line-soft:   #333b49;
+
+  --text:        #f0f3f7;
+  --text-2:      #c8d0dc;
+  --muted:       #98a2b3;
+
+  --brass:       #d4a95f;
+  --brass-deep:  #8d7038;
+
+  --up:          #56b98a;
+  --down:        #e0796a;
+
+  --paper:       #ffffff;
+  --paper-ink:   #1e242e;
+  --paper-mute:  #7b8494;
+  --paper-line:  #d7dbe2;
+
+  --font-ui: ui-sans-serif, system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-num: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+
+  --r-sm: 5px;
+  --r-md: 8px;
+  --r-lg: 11px;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+button { font: inherit; color: inherit; }
+
+/* A label is a label. Uppercase mono at a small size reads as instrumentation rather
+   than as a heading, which keeps the chart the only thing shouting. */
+.eyebrow {
+  font-family: var(--font-num);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+.up   { color: var(--up); }
+.down { color: var(--down); }
+.muted { color: var(--muted); }
+
+/* ---------------------------------------------------------------- app shell ----- */
+/* Three rows: header, moving bar, and everything else. The last row takes what is
+   left and never grows past it, so the page holds one screen and does not scroll. */
+.app {
+  height: 100vh;
+  min-height: 600px;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 22px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+/* Colour belongs to the markup here, one green, one red, one green. A fill rule at this
+   level would beat the presentation attribute on every rect and repaint all three in a
+   single colour, which is what turned three candles back into signal bars. */
+.mark { display: block; }
+
+.topbar-right { display: flex; align-items: baseline; gap: 9px; }
+.topbar-date { font-size: 13px; color: var(--text-2); }
+
+/* ---------------------------------------------------------------- ticker bar ---- */
+.tickerbar {
+  overflow: hidden;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+}
+
+.ticker-track {
+  display: flex;
+  width: max-content;
+  padding-left: 12px;
+  animation: marquee 70s linear infinite;
+}
+.ticker-track-still { animation: none; padding: 6px 22px; }
+.tickerbar:hover .ticker-track { animation-play-state: paused; }
+
+/* Spacing lives on the card, not as a flex gap. With a gap, half the track is not
+   half the cards and the loop lands a few pixels off every cycle. */
+@keyframes marquee {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(-50%, 0, 0); }
+}
+
+.ticker-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-right: 12px;
+  padding: 9px 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  transition: transform 150ms ease, border-color 150ms ease;
+}
+.ticker-card:hover { transform: scale(1.04); border-color: var(--surface-3); }
+
+.ticker-id { min-width: 92px; }
+.ticker-name { font-size: 13.5px; font-weight: 600; white-space: nowrap; }
+.ticker-symbol {
+  font-family: var(--font-num);
+  font-size: 10.5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.ticker-figures { text-align: right; min-width: 118px; }
+.ticker-price { font-size: 14.5px; font-weight: 600; white-space: nowrap; }
+.ticker-change { font-size: 11.5px; white-space: nowrap; }
+
+/* ---------------------------------------------------------------- main grid ----- */
+.main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 292px;
+  gap: 16px;
+  padding: 16px 20px 20px;
+  min-height: 0;
+}
+
+.stage {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 14px;
+  min-height: 0;
+}
+
+/* The controls are pinned and only the reference panels scroll. Scrolling the whole
+   column could carry the index selector and the Forecast button off screen, and the
+   controls are the reason the page exists. */
+.side {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 12px;
+  min-height: 0;
+}
+
+.side-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  padding-right: 2px;
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  flex-shrink: 0;
+}
+
+.panel-head { padding: 9px 15px 7px; border-bottom: 1px solid var(--line-soft); }
+
+/* Badges are colourless on purpose. A saturated glyph in bold on a tinted disc was the
+   hardest thing on the page to read, and colour belongs to the chart. */
+.badge circle { fill: var(--surface-3); }
+.badge text { fill: var(--text-2); }
+
+.asset-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 15px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.asset-row:last-of-type { border-bottom: none; }
+.asset-row:hover { background: var(--surface-2); }
+
+.asset-label { flex: 1; min-width: 0; }
+.asset-name { font-size: 13.5px; font-weight: 600; }
+.asset-sub { font-size: 11.5px; color: var(--muted); }
+.asset-figures { text-align: right; }
+.asset-price { font-size: 13.5px; font-weight: 600; }
+.asset-change { font-size: 11.5px; }
+
+/* Fixed position so a panel that scrolls or clips cannot cut the hint in half. */
+/* Anchored by its right edge to the row it belongs to, so it opens leftward into the
+   whole page. Positioning by left meant it was laid out in the space remaining to its
+   right, and near the window edge it collapsed into a column one word wide. */
+.hint {
+  position: fixed;
+  z-index: 30;
+  transform: translateY(-50%);
+  width: max-content;
+  max-width: 260px;
+  padding: 8px 11px;
+  background: var(--surface-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.45;
+  pointer-events: none;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.4);
+}
+
+/* ---------------------------------------------------------------- controls ------ */
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 13px 15px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  flex-shrink: 0;
+}
+
+.field { display: flex; flex-direction: column; gap: 6px; }
+
+.field select {
+  appearance: none;
+  width: 100%;
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 10px 30px 10px 12px;
+  font-size: 13.5px;
+  cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+                    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 17px) calc(50% + 1px), calc(100% - 12px) calc(50% + 1px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+.field select:focus-visible { outline: 2px solid var(--brass); outline-offset: 1px; }
+
+.btn-forecast {
+  margin-top: 2px;
+  padding: 10px 24px;
+  background: var(--brass);
+  color: #22190a;
+  border: none;
+  border-radius: var(--r-md);
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  transition: background-color 130ms ease;
+}
+.btn-forecast:hover:not(:disabled) { background: #e0b972; }
+.btn-forecast:disabled { background: var(--brass-deep); color: #2b2519; cursor: not-allowed; }
+.btn-forecast:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+
+/* ---------------------------------------------------------------- chart --------- */
+.chart-panel {
+  position: relative;
+  min-height: 0;
+  padding: 12px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+
+.chart-svg { display: block; }
+
+/* Top left, over the strip the chart reserves for it. It used to float over the top
+   right, which is where the forecast band and its upper label live. */
+.chart-toggle {
+  position: absolute;
+  top: 13px;
+  left: 13px;
+  z-index: 2;
+  display: flex;
+  border: 1px solid var(--paper-line);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+.chart-toggle button {
+  padding: 6px 12px;
+  background: #fff;
+  border: none;
+  color: var(--paper-mute);
+  font-family: var(--font-num);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.chart-toggle button[aria-pressed="true"] { background: var(--paper-ink); color: #fff; }
+.chart-toggle button:focus-visible { outline: 2px solid var(--paper-ink); outline-offset: -2px; }
+
+.chart-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 100%;
+  padding: 24px;
+  text-align: center;
+  color: var(--paper-mute);
+}
+.chart-empty-title { font-size: 16px; font-weight: 600; color: var(--paper-ink); }
+.chart-empty-note { font-size: 13.5px; max-width: 360px; margin: 0; }
+
+/* The hover readout, pinned in the strip the chart reserves above the plot. It replaced
+   a tooltip that followed the pointer, which had nowhere to go that was not on top of
+   the chart it was describing. */
+.chart-readout {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 2;
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  font-family: var(--font-num);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--paper-ink);
+  pointer-events: none;
+  white-space: nowrap;
+}
+.ro-date { color: var(--paper-mute); }
+.ro-pair { font-weight: 600; }
+.ro-pair i { font-style: normal; color: var(--paper-mute); font-weight: 400; margin-right: 6px; }
+.ro-pair b { font-weight: 700; }
+.chart-readout .up { color: #1a7f5a; }
+.chart-readout .down { color: #b2402f; }
+
+/* ---------------------------------------------------------------- results ------- */
+/* Seven fixed tracks. An auto fitting grid wrapped the last cell onto a second row and
+   left six empty slots beside it, which reads as a mistake rather than a layout. */
+.results {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--line-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.result-cell { background: var(--surface); padding: 12px 14px; min-width: 0; }
+.result-cell .eyebrow { display: block; min-height: 2.1em; }
+.result-value { font-size: 17px; font-weight: 600; margin-top: 3px; }
+.result-note { font-size: 11px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
+
+.verdict { font-size: 17px; font-weight: 700; margin-top: 3px; }
+.verdict.long { color: var(--up); }
+.verdict.short { color: var(--down); }
+.verdict.flat { color: var(--text-2); }
+
+.meter {
+  height: 3px;
+  margin-top: 7px;
+  border-radius: 2px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.meter i { display: block; height: 100%; background: var(--brass); }
+
+/* ---------------------------------------------------------------- overlays ------ */
+/* The boot screen is the page, not a dialog on top of one. Nothing renders behind it,
+   so there is nothing for a reader to glimpse half built. */
+.boot {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--bg);
+}
+
+.boot-inner { max-width: 420px; text-align: center; }
+.boot-inner .mark { margin: 0 auto 22px; }
+.boot-inner h1 { margin: 0 0 10px; font-size: 19px; font-weight: 600; }
+.boot-inner p { margin: 0 0 26px; font-size: 13.5px; color: var(--text-2); line-height: 1.55; }
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(17, 21, 29, 0.7);
+  backdrop-filter: blur(2px);
+}
+.scrim.sync { z-index: 50; }
+
+.dialog {
+  width: min(410px, 100%);
+  padding: 26px 26px 22px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+  text-align: center;
+}
+.dialog h2 { margin: 15px 0 8px; font-size: 16.5px; font-weight: 600; }
+.dialog p { margin: 0; font-size: 13.5px; color: var(--text-2); }
+
+.btn-cancel {
+  margin-top: 20px;
+  padding: 9px 24px;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  color: var(--text-2);
+  font-size: 13.5px;
+  cursor: pointer;
+  transition: border-color 130ms ease, color 130ms ease;
+}
+.btn-cancel:hover { border-color: var(--muted); color: var(--text); }
+.btn-cancel:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+
+/* A slow sweep, not a spinner. It reads as steady progress without pretending to know
+   how far along anything is. */
+.sweep {
+  width: 136px;
+  height: 2px;
+  margin: 0 auto;
+  border-radius: 2px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.sweep i {
+  display: block;
+  width: 38%;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--brass);
+  animation: sweep 1.5s ease-in-out infinite;
+}
+@keyframes sweep {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(364%); }
+}
+
+@media (max-width: 1080px) {
+  .main { grid-template-columns: minmax(0, 1fr) 262px; }
+  .results { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ticker-track { animation: none; }
+  .sweep i { animation: none; width: 100%; }
+  .ticker-card { transition: none; }
+}

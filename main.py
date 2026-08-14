@@ -66,10 +66,17 @@ CHROME_CANDIDATES = [
     "google-chrome", "google-chrome-stable", "chrome", "chromium", "chromium-browser",
     "microsoft-edge", "msedge", "brave-browser",
 ]
-CHROME_WINDOWS_PATHS = [
+# Direct paths for platforms where the executable is NOT on PATH. macOS installs
+# browsers under /Applications and puts nothing on PATH, so the shutil.which pass
+# above finds nothing there even when Chrome is installed.
+CHROME_DIRECT_PATHS = [
     r"C:\Program Files\Google\Chrome\Application\chrome.exe",
     r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
     r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+    "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+    "/Applications/Chromium.app/Contents/MacOS/Chromium",
 ]
 
 
@@ -143,7 +150,7 @@ def find_chrome() -> str | None:
         found = shutil.which(name)
         if found:
             return found
-    for path in CHROME_WINDOWS_PATHS:
+    for path in CHROME_DIRECT_PATHS:
         if pathlib.Path(path).exists():
             return path
     return None
@@ -179,16 +186,26 @@ def start_gui() -> subprocess.Popen | None:
     is the system and the front end is a client of it."""
     gui_dir = ROOT / "gui"
 
-    npm = shutil.which("npm")   # on Windows this resolves npm.cmd, which a bare
-    if npm is None:             # "npm" in Popen would not find
-        logger.error("npm not found on PATH. Install Node 18+, then run again.")
-        return None
-    if not (gui_dir / "node_modules").is_dir():
-        logger.error("gui/node_modules is missing. Run 'npm install' inside gui/ once.")
+    # A development machine has gui/node_modules and gets the Vite dev server with hot
+    # reload. Any other machine gets gui/serve.py, which serves the committed build with
+    # the standard library alone. Both listen on GUI_PORT and both forward /api to the
+    # REST API, so nothing downstream can tell them apart. This is what keeps Node off
+    # the requirements list: it is a build tool for whoever edits the GUI, not something
+    # a person needs installed to run the system.
+    if (gui_dir / "node_modules").is_dir():
+        npm = shutil.which("npm")   # on Windows this resolves npm.cmd, which a bare
+        if npm is not None:         # "npm" in Popen would not find
+            logger.info("Starting the GUI dev server")
+            return spawn([npm, "run", "dev"], cwd=gui_dir)
+        logger.warning("gui/node_modules exists but npm is not on PATH. Serving the build")
+
+    if not (gui_dir / "dist" / "index.html").is_file():
+        logger.error("No GUI build found. Run 'npm install' then 'npm run build' "
+                     "inside gui/ once.")
         return None
 
-    logger.info("Starting the GUI dev server")
-    return spawn([npm, "run", "dev"], cwd=gui_dir)
+    logger.info("Serving the GUI build")
+    return spawn([sys.executable, "-u", str(gui_dir / "serve.py")], cwd=gui_dir)
 
 
 # ----------------------------------------------------------------------------------

@@ -1,0 +1,97 @@
+├── ai
+│   ├── 1_PreTraining
+│   │   ├── Data-Extraction
+│   │   │   ├── extract_dataset.py
+│   │   ├── Feature-Eng
+│   │   │   ├── build_features.py
+│   │   │   ├── check_missing.py
+│   │   │   ├── run_eda.py
+│   │   │   ├── split_dataset.py
+│   │   ├── README.md
+│   │   ├── run_pretraining.py
+│   ├── 2_Train
+│   │   ├── README.md
+│   │   ├── run_train.py
+│   │   ├── test_baseline.py
+│   │   ├── test_core.py
+│   │   ├── test_daily.py
+│   │   ├── test_monthly.py
+│   │   ├── test_weekly.py
+│   │   ├── train_core.py
+│   │   ├── train_daily.py
+│   │   ├── train_monthly.py
+│   │   ├── train_weekly.py
+│   ├── 3_Production-FinalTraining
+│   │   ├── build_final_models.py
+│   │   ├── predictor.py
+│   │   ├── README.md
+│   │   ├── run_final_training.py
+│   │   ├── verify_inference.py
+│   ├── config.py
+│   ├── data_store
+│   ├── docs
+│   │   ├── FEATURES.md
+│   │   ├── README.md
+│   │   ├── RESULTS.md
+│   ├── Evaluation
+│   │   ├── metrics.py
+│   │   ├── README.md
+│   ├── runners
+│   │   ├── __init__.py
+│   │   ├── run_pipeline.py
+│   ├── tuning
+│   │   ├── best_params
+│   │   │   ├── daily.json
+│   │   │   ├── monthly.json
+│   │   │   ├── weekly.json
+│   │   ├── sbatch
+│   │   │   ├── tune_daily.sbatch
+│   │   │   ├── tune_monthly.sbatch
+│   │   │   ├── tune_weekly.sbatch
+│   │   ├── studies
+│   │   ├── tune_core.py
+│   │   ├── tune_daily.py
+│   │   ├── tune_monthly.py
+│   │   ├── tune_weekly.py
+│   ├── utils
+│   │   ├── __init__.py
+│   │   ├── features.py
+│   │   ├── gpu.py
+│   │   ├── io_store.py
+│   │   ├── log.py
+│   │   ├── model_status.py
+│   │   ├── modeling.py
+│   │   ├── plotting.py
+│   │   ├── runner.py
+├── backend
+│   ├── ai_bridge
+│   │   ├── forecast_service.py
+│   │   ├── model_status_service.py
+│   │   ├── train_service.py
+│   ├── config.json
+│   ├── docs
+│   │   ├── FEATURES.md
+│   │   ├── README.md
+│   │   ├── RESTAPI.md
+│   ├── eod_data
+│   │   ├── Ticker_EOD.py
+│   │   ├── Ticker_EOD_Extractor.py
+│   │   ├── Ticker_EOD_Manager.py
+│   ├── rest_main.py
+│   ├── storage
+│   │   ├── TickerDB.py
+│   │   ├── TickersDBManager.py
+│   ├── sync
+│   │   ├── SyncManager.py
+│   │   ├── SyncStatus.py
+│   ├── sync_main.py
+│   ├── utils
+│   │   ├── Banner.py
+│   │   ├── ConfigLoader.py
+│   │   ├── ConsoleLogger.py
+├── bootstrap.py
+├── gui
+├── main.py
+├── README.md
+├── requirements.txt
+├── structure.txt

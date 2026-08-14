@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#222834" />
+
+    <!--
+      Real icon files, not a data URI.
+
+      An inline SVG covers the tab and nothing else. Chrome reads a genuine .ico for the
+      application window, and the manifest icons are what it hands to the operating
+      system when a shortcut is created, which is where the blank tile in the taskbar
+      came from. All are generated from the same three candle geometry as the header mark.
+
+      The ?v= is not decoration. Chrome keeps favicons in a database inside its user data
+      directory and holds them far longer than an ordinary asset, so replacing the file
+      on disk left the old picture in the title bar and the taskbar until that directory
+      was deleted by hand. A different URL is a different cache entry. Raise the number
+      whenever an icon changes.
+    -->
+    <link rel="icon" href="./favicon.ico?v=3" sizes="any" />
+    <link rel="icon" type="image/png" sizes="32x32" href="./icon-32.png?v=3" />
+    <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png?v=3" />
+    <link rel="apple-touch-icon" href="./icon-180.png?v=3" />
+    <link rel="manifest" href="./manifest.webmanifest?v=3" />
+
+    <!--
+      U+2800, the blank braille pattern.
+
+      Chrome in application mode always draws document.title beside the icon. An empty
+      title, and a title made only of spaces, are both treated as absent and Chrome
+      falls back to printing the URL, which is what "localhost:5173" was. U+2800 is a
+      printing character that happens to render as nothing, so it survives that trim and
+      leaves the icon standing alone.
+    -->
+    <title>&#10240;</title>
+    <link rel="stylesheet" href="./assets/app.css?v=5" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script src="./assets/app.js?v=5"></script>
+  </body>
+</html>
