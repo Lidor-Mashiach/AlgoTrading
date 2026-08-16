@@ -99,8 +99,9 @@ button { font: inherit; color: inherit; }
    single colour, which is what turned three candles back into signal bars. */
 .mark { display: block; }
 
-.topbar-right { display: flex; align-items: baseline; gap: 9px; }
-.topbar-date { font-size: 13px; color: var(--text-2); }
+.topbar-right { display: flex; align-items: baseline; gap: 8px; }
+.topbar-day { font-size: 13px; color: var(--muted); }
+.topbar-date { font-size: 13px; color: var(--text-2); font-weight: 600; }
 
 /* ---------------------------------------------------------------- ticker bar ---- */
 .tickerbar {

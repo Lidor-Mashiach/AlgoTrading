@@ -16,6 +16,10 @@ import { BootScreen, ForecastOverlay } from "./components/Overlays.jsx";
 
 const POLL_MS = 3000;
 
+// How often the reference data is refreshed once the page is up. End of day figures move
+// at most once a day, so this is slow on purpose.
+const REFRESH_MS = 120000;
+
 /*
   Fill in any band price the API left empty.
 
@@ -167,21 +171,27 @@ export default function App() {
   }, []);
 
   /*
-    Keep asking until the data is in, then stop.
+    Load the reference data, then keep it current.
 
     This is the only thing that gates the page. The moment the backend has a populated
     dataset the whole interface appears, filled in and usable, whatever is still being
-    built behind it. End of day figures do not change once loaded, so this stops on the
-    first success rather than polling forever.
+    built behind it.
+
+    It does not stop once loaded. An earlier version did, and the header and the moving
+    bar then froze at whatever the database held the instant the app opened. The daily
+    sync adds a session while the app is running, so a page left open reported a date
+    older than the one on its own chart. Retries are quick until the first success and
+    slow afterwards, and a failed refresh changes nothing on screen, since state is only
+    written when a load actually returns data.
   */
   useEffect(() => {
     let alive = true;
     let timer;
 
     const attempt = async () => {
-      const done = await loadReference();
-      if (!alive || done) return;
-      timer = setTimeout(attempt, POLL_MS);
+      const loaded = await loadReference();
+      if (!alive) return;
+      timer = setTimeout(attempt, loaded ? REFRESH_MS : POLL_MS);
     };
 
     attempt();
@@ -214,6 +224,10 @@ export default function App() {
         setCandles(drawn);
         setBand(withPrices(result, drawn));
         setForecasting(false);
+
+        // A forecast proves the backend has fresh rows, so pull the reference data
+        // across at once rather than waiting for the next scheduled refresh.
+        loadReference();
       } catch {
         /*
           Every failure keeps this dialog, and this dialog always has Cancel.
@@ -229,7 +243,7 @@ export default function App() {
     };
 
     attempt();
-  }, [symbol, horizon]);
+  }, [symbol, horizon, loadReference]);
 
   const cancelForecast = useCallback(() => {
     runRef.current += 1;

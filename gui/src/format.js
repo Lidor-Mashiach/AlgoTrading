@@ -43,6 +43,21 @@ export function ratioAsPercent(value) {
   return `${Math.round(Number(value) * 100)}%`;
 }
 
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+/**
+ * The day of the week for an ISO date.
+ *
+ * Parsed as UTC on purpose. Reading it on the local clock would shift the day by one for
+ * anyone west of Greenwich, and a date that names the wrong weekday is worse than a date
+ * that names none.
+ */
+export function weekday(iso) {
+  if (!iso) return "";
+  const d = new Date(`${String(iso).slice(0, 10)}T00:00:00Z`);
+  return Number.isNaN(d.getTime()) ? "" : WEEKDAYS[d.getUTCDay()];
+}
+
 /** ISO yyyy-mm-dd from the API into dd/mm/yyyy. */
 export function date(iso) {
   if (!iso) return "\u2013";

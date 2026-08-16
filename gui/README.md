@@ -177,6 +177,10 @@ Two floating dialogs, and the difference between them is who may walk away.
 | **Boot** | Reference data has not loaded | ❌ None | The whole page. Nothing else is mounted until real data is in hand |
 | **Forecast** | Anything other than a ready band | ✅ Yes | A dialog over a working page. Repeats every 3 seconds |
 
+**The header reports the last stored session, with its weekday.** It is the only status the interface shows, and it is a fact about the market rather than about the software.
+
+**The reference data is refreshed, not loaded once.** An earlier version stopped polling on the first success, so the header and the moving bar froze at whatever the database held the instant the app opened. The daily sync adds a session while the app is running, and a page left open then reported a date older than the one on its own chart. Retries are quick until the first success and slow afterwards, and a successful forecast triggers a refresh straight away, because it proves fresh rows exist.
+
 **The controls never scroll away.** The right column is a two row grid: the selectors and the Forecast button are pinned, and only the reference panels below them scroll when the window is short.
 
 **The boot screen replaces the interface rather than covering it.** `App` returns it and nothing else while `booted` is false, so a partly loaded page is not hidden, it does not exist. An earlier version rendered the full shell with every panel reading "Waiting for data", which looked like broken software rather than software that was starting.

@@ -1,4 +1,4 @@
-import { date } from "../format.js";
+import { date, weekday } from "../format.js";
 import { Mark } from "./Glyphs.jsx";
 
 /*
@@ -18,6 +18,7 @@ export function TopBar({ dataDate }) {
       <Mark />
       <div className="topbar-right">
         <span className="eyebrow">Data through</span>
+        {dataDate && <span className="topbar-day">{weekday(dataDate)}</span>}
         <span className="topbar-date num">{dataDate ? date(dataDate) : "\u2013"}</span>
       </div>
     </header>
