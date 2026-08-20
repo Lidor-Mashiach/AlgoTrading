@@ -35,6 +35,18 @@ const POLL_MS = 3000;
 const WATCH_MS = 5 * 60 * 1000;
 
 /*
+  How many incomplete reloads to sit through before accepting one anyway.
+
+  A reload that does not bring back every index is normally the backend refusing to
+  serve while it writes new rows, and the right response is to ask again in a moment
+  rather than to render what happened to get through. But an index that is genuinely
+  empty would never complete, and waiting on it forever would leave the page retrying
+  three seconds apart for the rest of the session. After this many tries the partial
+  result is accepted and the page settles, having lost nothing except that one index.
+*/
+const PARTIAL_ATTEMPTS = 5;
+
+/*
   Fill in any band price the API left empty.
 
   predictor.py returns null prices when it cannot find an anchor close, while the
@@ -63,6 +75,25 @@ export function withPrices(band, candles) {
     mid_price: fill(band.mid_price, band.mid_pct),
     high_price: fill(band.high_price, band.high_pct),
   };
+}
+
+/*
+  The newest session the freshness map holds for the indices.
+
+  Only the indices, because the header reports the market rather than the reference
+  panels, and a currency pair publishing on its own schedule must not move it.
+
+  Dates are ISO strings, so comparing them as text orders them correctly.
+*/
+export function newestIndexSession(sessions, indexSymbols) {
+  if (!sessions || !indexSymbols) return null;
+
+  let newest = null;
+  for (const symbol of indexSymbols) {
+    const date = sessions[symbol];
+    if (typeof date === "string" && (newest === null || date > newest)) newest = date;
+  }
+  return newest;
 }
 
 /*
@@ -101,6 +132,11 @@ export default function App() {
   const [marketQuotes, setMarketQuotes] = useState([]);
   const [dataDate, setDataDate] = useState(null);
 
+  // The date the header is currently showing, readable from the watcher. Same reason as
+  // bootedRef: the effect is created once and would otherwise keep reading the value
+  // that existed when it was created.
+  const dataDateRef = useRef(null);
+
   const [symbol, setSymbol] = useState("");
   const [horizon, setHorizon] = useState("daily");
   const [candles, setCandles] = useState(null);
@@ -128,17 +164,48 @@ export default function App() {
   // legitimately, because one exchange can publish a session before another.
   const seenMapRef = useRef(null);
 
-  /*
-    Try to load everything the page needs. Returns whether it succeeded.
+  // Consecutive reloads that came back short of a full set of indices.
+  const partialRef = useRef(0);
 
-    Success means real data, not merely a response. An empty ticker list, or a set of
-    symbols that all failed, is a database that exists but is not populated yet, and
-    that is still a reason to wait. Every failure is treated the same way on purpose:
-    the reader does not care whether the backend answered 503 because a sync is running
-    or 404 because a table is empty, and an earlier version that only recognised 503
-    let every other case through to a shell with no data in it.
+  /*
+    The number of the newest reload to have started.
+
+    Two of them can be in flight at once, because a forecast starts one of its own while
+    the watcher is free to start another. They take a few hundred milliseconds and can
+    finish in either order, so without this the older one is able to land last and paint
+    its older picture over the newer one. Whatever it wrote would then stay, because the
+    watcher had already recorded those sessions as shown.
+
+    Only the newest reload is allowed to write. An older one that comes back late is
+    dropped where it would otherwise call setState.
+  */
+  const loadSeqRef = useRef(0);
+
+  /*
+    Try to load everything the page needs.
+
+    Returns two facts, because they are different questions:
+
+      ok        enough came back to put something on the screen
+      complete  every index came back
+      stale     a newer reload started while this one was in flight
+
+    They used to be one boolean, and that was the bug. A reload is normally short of
+    indices because the backend is busy writing new rows and is refusing to serve, and
+    treating that as a success recorded the new sessions as handled while the screen had
+    only been partly redrawn. Nothing ever revisited it, because from then on the page
+    believed it was already showing what the backend held, and the header sat on the
+    previous day until the app was restarted.
+
+    Failure of any kind is still treated the same way at the level below this: the reader
+    does not care whether a symbol returned 503 because a sync is running or 404 because
+    its table is empty. What changed is that the caller is now told whether the picture it
+    just drew is whole.
   */
   const loadReference = useCallback(async () => {
+    const seq = (loadSeqRef.current += 1);
+    const superseded = () => seq !== loadSeqRef.current;
+
     try {
       if (!listsRef.current) {
         const [indexList, currencyList, marketList] = await Promise.all([
@@ -148,7 +215,7 @@ export default function App() {
         ]);
 
         const indexSymbols = (indexList || []).map((o) => o.symbol).filter(Boolean);
-        if (indexSymbols.length === 0) return false;
+        if (indexSymbols.length === 0) return { ok: false, complete: false, stale: false };
 
         // The currency panel is an explicit list rather than everything the backend
         // syncs, so ordering comes from CURRENCY_DISPLAY and unlisted pairs are never
@@ -173,7 +240,7 @@ export default function App() {
         going to be refused, which is the flood this whole change exists to remove.
       */
       const probe = await loadQuotes("index", indexSymbols.slice(0, 1));
-      if (probe.length === 0) return false;
+      if (probe.length === 0) return { ok: false, complete: false, stale: superseded() };
 
       const [rest, cq, mq] = await Promise.all([
         loadQuotes("index", indexSymbols.slice(1)),
@@ -182,19 +249,27 @@ export default function App() {
       ]);
 
       const iq = [...probe, ...rest];
-      if (iq.length === 0) return false;
+      if (iq.length === 0) return { ok: false, complete: false, stale: superseded() };
+
+      // A newer reload is already running against fresher data. Writing now would put
+      // this older picture on the screen and leave it there.
+      if (superseded()) return { ok: false, complete: false, stale: true };
+
+      const newest = iq.reduce((latest, q) => (q.date > latest ? q.date : latest), "");
 
       setIndices(indexSymbols);
       setSymbol((current) => current || indexSymbols[0] || "");
       setIndexQuotes(iq);
       setCurrencyQuotes(cq);
       setMarketQuotes(mq);
-      setDataDate(iq.reduce((latest, q) => (q.date > latest ? q.date : latest), ""));
+      setDataDate(newest);
+      dataDateRef.current = newest;
       setBooted(true);
       bootedRef.current = true;
-      return true;
+
+      return { ok: true, complete: iq.length === indexSymbols.length, stale: false };
     } catch {
-      return false;
+      return { ok: false, complete: false, stale: superseded() };
     }
   }, []);
 
@@ -209,12 +284,22 @@ export default function App() {
 
     After that, each pass costs one request: the freshness map for every symbol. The
     fourteen data calls follow only when that map differs from what is on screen, so a
-    quiet page makes three requests a minute and a session gained by any exchange is
+    quiet page makes twelve requests an hour and a session gained by any exchange is
     picked up within the watch interval.
 
+    A reload is triggered by either of two things, and the second is the safety net:
+
+      the map changed   something has moved since the last pass
+      the map is ahead  the map holds a newer index session than the header shows
+
+    The first is a comparison of one pass against the last, and it can only fire once per
+    change. The second is a comparison against what is actually on the screen, so it does
+    not care how the screen fell behind or how long ago. A reload that was interrupted
+    part way through is corrected on the very next pass, and both readings come out of
+    the request that was going to be made anyway.
+
     A pass that fails leaves the screen exactly as it was, because state is written only
-    when a load actually returns data. When the failure was the backend fetching new
-    rows, the map that follows will differ and the reload happens on its own.
+    when a load actually returns data.
   */
   useEffect(() => {
     let alive = true;
@@ -227,18 +312,32 @@ export default function App() {
         const map = await latestSessions();
         const signature = JSON.stringify(map);
 
-        if (!bootedRef.current) {
-          if (await loadReference()) {
+        const stored = newestIndexSession(map, listsRef.current?.indexSymbols);
+        const behind = Boolean(stored && dataDateRef.current && stored > dataDateRef.current);
+
+        if (!bootedRef.current || signature !== seenRef.current || behind) {
+          const { ok, complete, stale } = await loadReference();
+
+          if (stale) {
+            // A newer reload took over. It writes, and the next pass confirms.
+            wait = POLL_MS;
+          } else if (ok && (complete || partialRef.current >= PARTIAL_ATTEMPTS)) {
+            // A whole picture, or one index that is never going to answer. Either way
+            // this pass is done and the next one can wait out the full interval.
             seenRef.current = signature;
             seenMapRef.current = map;
+            partialRef.current = 0;
             wait = WATCH_MS;
+          } else if (ok) {
+            // Something was drawn, but not all of it. The screen keeps what came back
+            // and the pass is deliberately NOT recorded, so this repeats shortly and
+            // finishes the job once the backend is free.
+            partialRef.current += 1;
+            wait = POLL_MS;
+          } else {
+            // The backend is busy or not up. Ask again shortly and change nothing.
+            wait = POLL_MS;
           }
-        } else if (signature !== seenRef.current) {
-          if (await loadReference()) {
-            seenRef.current = signature;
-            seenMapRef.current = map;
-          }
-          wait = WATCH_MS;
         } else {
           wait = WATCH_MS;
         }

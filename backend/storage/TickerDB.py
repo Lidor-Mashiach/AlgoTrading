@@ -3,6 +3,7 @@ import pandas as pd
 
 from eod_data.Ticker_EOD import Ticker_EOD
 
+
 class TickerDB:
     def __init__(self, db_name: str, ticker: str, periods: list = [20, 50, 100, 150, 200]):
         self.db_name = db_name
@@ -25,10 +26,10 @@ class TickerDB:
 
     def clean_ticker_name(self, ticker_name: str) -> str:
         replace_char = '_'
-        chars_to_replace = {'.': replace_char, '^': '', '-': replace_char, '=': replace_char }
+        chars_to_replace = {'.': replace_char, '^': '', '-': replace_char, '=': replace_char}
         for c in chars_to_replace.keys():
             ticker_name = ticker_name.replace(c, chars_to_replace[c])
-        
+
         return ticker_name
 
     @staticmethod
@@ -125,8 +126,8 @@ class TickerDB:
 
     def get_data_as_pd(self, horizon: str, start_date: str = None, limit: int = None) -> pd.DataFrame:
         tables = {
-            "daily":   self.daily_table,
-            "weekly":  self.weekly_table,
+            "daily": self.daily_table,
+            "weekly": self.weekly_table,
             "monthly": self.monthly_table,
         }
         if horizon not in tables:
@@ -171,30 +172,40 @@ class TickerDB:
         return [Ticker_EOD(ticker=self.ticker, date=str(date), features=row.to_dict()) for date, row in df.iterrows()]
 
     def add_row(self, date: str, features: dict, auto_commit: bool = True):
-        cursor = self.connection.cursor()
-        for table, cols in [
-            (self.daily_table, self.DAILY_COLS),
-            (self.weekly_table, self.WEEKLY_COLS),
-            (self.monthly_table, self.MONTHLY_COLS),
-        ]:
-            row = {col: features.get(col) for col in cols}
-            placeholders = ", ".join("?" for _ in cols)
-            quoted_table = self._quote_identifier(table)
-            col_names = ", ".join(self._quote_identifier(col) for col in cols)
-            cursor.execute(f"""
-                INSERT OR REPLACE INTO {quoted_table} ("date", {col_names})
-                VALUES (?, {placeholders})
-            """, [date] + list(row.values()))
-        if auto_commit:
-            self.connection.commit()
+        # Its own connection, like every other query method. This used to reuse the one
+        # opened in __init__, which that constructor closes before it returns, so any
+        # call raised "Cannot operate on a closed database".
+        connection = sqlite3.connect(self.db_name)
+
+        try:
+            cursor = connection.cursor()
+            for table, cols in [
+                (self.daily_table, self.DAILY_COLS),
+                (self.weekly_table, self.WEEKLY_COLS),
+                (self.monthly_table, self.MONTHLY_COLS),
+            ]:
+                row = {col: features.get(col) for col in cols}
+                placeholders = ", ".join("?" for _ in cols)
+                quoted_table = self._quote_identifier(table)
+                col_names = ", ".join(self._quote_identifier(col) for col in cols)
+                cursor.execute(f"""
+                    INSERT OR REPLACE INTO {quoted_table} ("date", {col_names})
+                    VALUES (?, {placeholders})
+                """, [date] + list(row.values()))
+
+            if auto_commit:
+                connection.commit()
+
+        finally:
+            connection.close()
 
     def add_dataframe(self, df: pd.DataFrame):
         connection = sqlite3.connect(self.db_name)
 
         try:
             for table, cols in [
-                (self.daily_table,   self.DAILY_COLS),
-                (self.weekly_table,  self.WEEKLY_COLS),
+                (self.daily_table, self.DAILY_COLS),
+                (self.weekly_table, self.WEEKLY_COLS),
                 (self.monthly_table, self.MONTHLY_COLS),
             ]:
                 available_cols = [col for col in cols if col in df.columns]
@@ -217,23 +228,50 @@ class TickerDB:
         finally:
             connection.close()
 
-    def get_latest_date(self) -> dict:
+    def get_latest_date(self, horizons: list = None) -> dict:
+        """
+        The newest stored date per horizon.
+
+        horizons narrows the query to the ones the caller actually reads. Both callers
+        want "daily" alone, and querying all three meant two thirds of the work was
+        thrown away on every call. Passing nothing keeps the original behaviour and
+        returns all three.
+        """
+        tables = {
+            "daily": self.daily_table,
+            "weekly": self.weekly_table,
+            "monthly": self.monthly_table,
+        }
+        wanted = list(tables) if horizons is None else list(horizons)
+
+        for horizon in wanted:
+            if horizon not in tables:
+                raise ValueError(f"Unknown horizon '{horizon}'. Use 'daily', 'weekly', or 'monthly'.")
+
         connection = sqlite3.connect(self.db_name)
 
         try:
             cursor = connection.cursor()
             latest_dates = {}
 
-            for horizon, table in [
-                ("daily",   self.daily_table),
-                ("weekly",  self.weekly_table),
-                ("monthly", self.monthly_table),
-            ]:
-                quoted_table = self._quote_identifier(table)
+            for horizon in wanted:
+                quoted_table = self._quote_identifier(tables[horizon])
                 cursor.execute(f'SELECT MAX("date") FROM {quoted_table}')
                 latest_dates[horizon] = cursor.fetchone()[0]
 
             return latest_dates
 
         finally:
-            self.connection.close()
+            # The connection opened above, not the one from __init__. Closing the wrong
+            # one left this one open until the garbage collector happened to reach it.
+            connection.close()
+
+    def close(self) -> None:
+        """
+        Release the connection opened during initialisation.
+
+        Every query method opens and closes a connection of its own, so there is nothing
+        else to release. This exists because TickersDBManager.close() calls it, and
+        without it that call raised AttributeError. Safe to call more than once.
+        """
+        self.connection.close()

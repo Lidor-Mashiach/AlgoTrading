@@ -111,7 +111,7 @@ def latest_sessions(request: Request) -> dict:
     latest = {}
     for symbol in tickers + supporting_tickers + currencies:
         try:
-            latest[symbol] = db_manager.get_ticker(symbol).get_latest_date()["daily"]
+            latest[symbol] = db_manager.get_ticker(symbol).get_latest_date(["daily"])["daily"]
         except Exception:
             latest[symbol] = None
 

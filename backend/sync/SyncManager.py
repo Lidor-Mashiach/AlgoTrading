@@ -38,7 +38,7 @@ class SyncManager:
         sync_status = {}
         for ticker in self.tickers:
             yf_latest = self.last_finished_session(ticker, frames.get(ticker))
-            db_latest_daily = self.ticker_db_manager.get_ticker(ticker).get_latest_date()["daily"]
+            db_latest_daily = self.ticker_db_manager.get_ticker(ticker).get_latest_date(["daily"])["daily"]
             sync_status[ticker] = {
                 "yf_latest": yf_latest,
                 "db_latest": db_latest_daily,
