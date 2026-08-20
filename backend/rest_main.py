@@ -85,6 +85,39 @@ def get_market_data(symbol: str, horizon: str, request: Request, supported_symbo
     return {"status": "success", "data": data}
 
 
+@app.get("/api/latest", summary="Latest stored session per symbol", description="Returns the most recent stored date for every tracked symbol, in one call.", response_description="A map of symbol to its latest stored date.")
+def latest_sessions(request: Request) -> dict:
+    """
+    The newest stored date for every symbol the system tracks.
+
+    Exists so a client can tell whether anything has moved without asking each symbol in
+    turn. Every exchange publishes on its own schedule, so watching one symbol misses the
+    others: Tel Aviv can gain a session while New York has not, and a client polling only
+    New York would show a stale side panel indefinitely. One call covers all of them and
+    costs a single query per symbol against a local database.
+
+    Deliberately not guarded by ensure_not_syncing. A client watching for change is
+    exactly the client that should keep getting an answer during a sync.
+
+    Silent by design. This is a heartbeat an interface asks every few seconds, and it
+    reads the store rather than changing it. Reporting on a sync belongs to the process
+    that performs one: an earlier version announced results from here and contradicted
+    itself, because it described the store at the moment a client happened to poll,
+    which could be seconds before the sync it was describing had finished.
+
+    Example:
+    GET /api/latest
+    """
+    latest = {}
+    for symbol in tickers + supporting_tickers + currencies:
+        try:
+            latest[symbol] = db_manager.get_ticker(symbol).get_latest_date()["daily"]
+        except Exception:
+            latest[symbol] = None
+
+    return {"status": "success", "data": latest}
+
+
 @app.get("/api/tickers", summary="List primary tickers", description="Returns all supported primary ticker symbols and their available horizons.", response_description="A list of supported primary ticker symbols.")
 def list_tickers(request: Request) -> dict:
     """

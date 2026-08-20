@@ -1,5 +1,29 @@
 ## Endpoints
 
+### Latest Stored Session Per Symbol
+
+```
+GET /api/latest
+```
+
+Returns the most recent stored date for every tracked symbol, in a single call.
+
+Exists so a client can tell whether anything has moved without asking each symbol in
+turn. Every exchange publishes on its own schedule, so watching one symbol misses the
+others.
+
+Not blocked while a sync is running. A client watching for change is exactly the client
+that should keep getting an answer during one.
+
+Example response:
+
+```json
+{
+  "status": "success",
+  "data": { "SPY": "2026-08-18", "TA35.TA": "2026-08-17" }
+}
+```
+
 ### List Primary Tickers
 
 ```http

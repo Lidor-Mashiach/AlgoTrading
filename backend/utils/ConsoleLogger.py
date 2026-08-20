@@ -10,6 +10,8 @@ class ConsoleLogger:
         "ERROR": "\033[31m",      # Red
         "DEBUG": "\033[90m",      # Gray
         "START": "\033[38;5;213m",  # Pink
+        "END": "\033[38;5;213m",    # Pink, to pair with START
+        "REFRESH": "\033[38;5;208m",  # Orange
     }
     RESET = "\033[0m"
 
@@ -45,6 +47,14 @@ class ConsoleLogger:
 
     def section(self, title, end="\n"):
         self._log("START", f"----- {title} -----", end=end)
+
+    def section_end(self, title, end="\n"):
+        """Closes a section opened with section(). Same shape, different word."""
+        self._log("END", f"----- {title} -----", end=end)
+
+    def refresh(self, message, end="\n"):
+        """Model refresh activity. Its own level so it stands out from ordinary info."""
+        self._log("REFRESH", message, end=end)
 
     def subsection(self, title, end="\n"):
         self._log("START", f"----- {title} -----", end=end)

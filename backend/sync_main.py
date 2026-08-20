@@ -30,8 +30,9 @@ def init_managers(tickers, supporting_tickers, currencies, periods, db_name):
     return db_manager, sync_manager
 
 
-def get_sync_lists(sync_manager):
-    logger.section("Checking Sync Status")
+def get_sync_lists(sync_manager, verbose=True):
+    if verbose:
+        logger.section("Checking Sync Status")
 
     ticker_sync_status = sync_manager.get_sync_status()
 
@@ -45,14 +46,17 @@ def get_sync_lists(sync_manager):
         if not status["is_synced"]
     ]
 
-    logger.info(f"Synced tickers: {len(synced_tickers)}")
-    logger.info(f"Unsynced tickers: {len(unsynced_tickers)}")
+    # An hourly check that finds nothing new is the normal case, and printing a block
+    # every hour for it would bury the entries that matter.
+    if verbose or unsynced_tickers:
+        logger.info(f"Synced tickers: {len(synced_tickers)}")
+        logger.info(f"Unsynced tickers: {len(unsynced_tickers)}")
 
-    if synced_tickers:
-        logger.success(f"Already synced: {', '.join(synced_tickers)}")
+        if synced_tickers:
+            logger.success(f"Already synced: {', '.join(synced_tickers)}")
 
-    if unsynced_tickers:
-        logger.warning(f"Need syncing: {', '.join(unsynced_tickers)}")
+        if unsynced_tickers:
+            logger.warning(f"Need syncing: {', '.join(unsynced_tickers)}")
 
     return ticker_sync_status, synced_tickers, unsynced_tickers
 
@@ -94,7 +98,7 @@ def refresh_model():
         safe. Logs the result when done."""
         try:
             result = train_service.train_if_needed()
-            logger.info(f"Model refresh completed with result: {result}")
+            logger.refresh(f"Model refresh completed with result: {result}")
         except Exception as exc:
             logger.error(f"Model refresh failed: {exc}")
 
@@ -121,49 +125,95 @@ def close_db(db_manager):
     logger.success("Database connection closed successfully")
 
 
-def seconds_until_next_sync(hour=14, minute=0):
-    now = datetime.now()
-    next_run = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+# How long to wait between checks. Hourly, not once a day.
+#
+# A fixed daily time cannot work, because the thing being waited for is not a clock. Yahoo
+# publishes a session when it publishes it, and the delay is different for every exchange:
+# a check has found Tel Aviv and Frankfurt still missing a session ten hours after both
+# had closed. A daily check that lands during one of those gaps leaves the whole system a
+# day behind until the next one, which is a full day later.
+#
+# Checking every hour bounds that gap at an hour. Each ticker is still judged against its
+# own exchange clock inside previous_closed_trading_date, so an hourly check is not a
+# blunt instrument: it is simply asking often enough that whichever exchange publishes
+# next is picked up promptly.
+SYNC_INTERVAL_SECONDS = 60 * 60
 
-    if next_run <= now:
-        next_run += timedelta(days=1)
 
-    return (next_run - now).total_seconds()
+def seconds_until_next_sync(hour=None, minute=None):
+    """Kept for callers that still pass a time of day. The interval is fixed now."""
+    return SYNC_INTERVAL_SECONDS
 
 
-def run_sync_cycle(sync_manager, db_manager):
-    ticker_sync_status, _ , unsynced_tickers = get_sync_lists(sync_manager)
+def run_sync_cycle(sync_manager, db_manager, verbose=True, hold_clients=False):
+    """
+    Bring the store up to date.
 
-    if unsynced_tickers:
+    hold_clients decides what a client sees while this runs. At startup it is True, so
+    the API reports itself unavailable for the whole cycle and the interface holds a
+    waiting screen. That matters because deciding what needs fetching means asking Yahoo
+    about every symbol, which takes time, and during it the store still holds yesterday.
+    Without the hold, the interface would come up, render that stale day, and only
+    correct itself later, which is exactly what it used to do.
+
+    On the hourly cycles it is False. There the store is already current and almost every
+    cycle finds nothing, so blocking a working screen for a routine check would be worse
+    than the problem. If one of those cycles does find something, the fetch itself still
+    holds clients, as it always did.
+    """
+    logger.section("=" * 62)
+    logger.info("")
+    logger.info("Sync check starting")
+    logger.info("")
+    logger.section("=" * 62)
+
+    if hold_clients:
         SyncStatus.set_syncing()
-        sync_unsynced_tickers(db_manager, unsynced_tickers, ticker_sync_status)
+
+    updated = []
+    try:
+        ticker_sync_status, _ , unsynced_tickers = get_sync_lists(sync_manager, verbose)
+
+        if unsynced_tickers:
+            SyncStatus.set_syncing()
+            sync_unsynced_tickers(db_manager, unsynced_tickers, ticker_sync_status)
+            updated = unsynced_tickers
+    finally:
+        # Released whatever happened. A cycle that raised must not leave every endpoint
+        # answering "unavailable" for the life of the process.
         SyncStatus.set_finished()
+
+    logger.section_end("=" * 62)
+    logger.info("")
+    if updated:
+        logger.success(f"Sync complete: {len(updated)} ticker(s) updated")
+        for ticker in updated:
+            logger.info(f"    {ticker}")
     else:
-        logger.success("All tickers are already synced. No update needed.")
+        logger.info("Sync complete: no change, every ticker was already current")
+    logger.info("")
+    logger.section_end("=" * 62)
 
-        # Always hand off to the training bridge. It is the single place that decides
-        # what needs doing: build every model on a fresh machine, retrain a horizon
-        # whose candle just closed, or do nothing. Skipping it when the data happened
-        # to be synced would leave a machine with no models stuck reporting "training"
-        # forever.
-    refresh_model()
+    return updated
 
-def sync_scheduler(sync_manager, db_manager, sync_time):
+
+def sync_scheduler(sync_manager, db_manager, sync_time=None):
+    # The clock starts when the system does. A machine switched on at 14:20 checks at
+    # 15:20, not at some fixed hour it may never be running for.
+    logger.info(f"Checking every {SYNC_INTERVAL_SECONDS // 60} minutes for newly published sessions")
+
     while True:
-        seconds_until_next = seconds_until_next_sync(
-            sync_time["hour"],
-            sync_time["minute"]
-        )
+        time.sleep(SYNC_INTERVAL_SECONDS)
 
-        logger.info(
-            f"Next sync scheduled in {int(seconds_until_next) // 3600} hours, "
-            f"{(int(seconds_until_next) % 3600) // 60} minutes, and "
-            f"{int(seconds_until_next) % 60} seconds"
-        )
-
-        time.sleep(seconds_until_next)
-
-        run_sync_cycle(sync_manager, db_manager)
+        # Retrain only when a candle actually arrived.
+        #
+        # The bridge decides for itself whether anything needs training, but it reaches
+        # that decision by rebuilding features and splitting the data first, which is
+        # several seconds of work and a screen of output. Running it hourly against a
+        # store that has not moved produced all of that to conclude nothing had changed.
+        # Startup still calls it unconditionally, so a machine with no models is covered.
+        if run_sync_cycle(sync_manager, db_manager, verbose=False):
+            refresh_model()
 
 
 def main():
@@ -176,11 +226,18 @@ def main():
     logger.info(f"Currencies: {', '.join(currencies)}")
     logger.info(f"Horizons: {', '.join(horizons)}")
     logger.info(f"Periods: {', '.join(map(str, periods))}")
-    logger.info(f"Sync time: {(sync_time['hour'] % 12) or 12:02d}:{sync_time['minute']:02d} {'AM' if sync_time['hour'] < 12 else 'PM'}")
+    logger.info(f"Sync interval: every {SYNC_INTERVAL_SECONDS // 60} minutes, plus once at startup")
 
     db_manager, sync_manager = init_managers(tickers, supporting_tickers, currencies, periods, db_name)
 
-    run_sync_cycle(sync_manager, db_manager)
+    # Startup holds clients until the store is current, so the interface can never open
+    # on a stale day.
+    run_sync_cycle(sync_manager, db_manager, hold_clients=True)
+
+    # Always on startup. The training bridge is the single place that decides what needs
+    # doing, and a machine whose models are missing has to reach it even when the store
+    # was already current.
+    refresh_model()
 
     logger.section("Starting Scheduled Sync")
     # Run the scheduler on the MAIN thread so this process stays alive 24/7.

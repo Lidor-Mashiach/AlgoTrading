@@ -58,3 +58,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# -------- Lidor's Analyzers Scripts -------
+generate_structure.py
+structure.txt
+

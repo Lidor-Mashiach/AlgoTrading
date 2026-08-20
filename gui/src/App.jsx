@@ -3,7 +3,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   CURRENCY_DISPLAY, DAILY_ROWS_FOR, HISTORY_PERIODS, SPARK_ROWS, currencyMeta, marketMeta,
 } from "./catalog.js";
-import { dailySeries, forecast, listCurrencies, listIndices, listMarket } from "./api.js";
+import {
+  dailySeries, forecast, latestSessions, listCurrencies, listIndices, listMarket,
+} from "./api.js";
 import { latestQuote, toCandles } from "./periods.js";
 
 import { TopBar } from "./components/TopBar.jsx";
@@ -16,9 +18,16 @@ import { BootScreen, ForecastOverlay } from "./components/Overlays.jsx";
 
 const POLL_MS = 3000;
 
-// How often the reference data is refreshed once the page is up. End of day figures move
-// at most once a day, so this is slow on purpose.
-const REFRESH_MS = 120000;
+/*
+  How often the page asks whether a newer session exists, once it is up.
+
+  Twenty seconds, and a single request. The earlier version reloaded all fourteen symbols
+  every two minutes, which was both too much traffic and too slow to notice anything: it
+  flooded the log while still taking up to two minutes to see a session that had just
+  landed. Asking one symbol for its latest date costs almost nothing, so it can be asked
+  often, and the fourteen only follow when that date has actually moved.
+*/
+const WATCH_MS = 20000;
 
 /*
   Fill in any band price the API left empty.
@@ -77,6 +86,10 @@ export default function App() {
   // half loaded page can never reach the screen.
   const [booted, setBooted] = useState(false);
 
+  // Read by the watcher, which runs outside React's render and needs the current value
+  // rather than the one captured when the effect was created.
+  const bootedRef = useRef(false);
+
   const [indices, setIndices] = useState([]);
   const [indexQuotes, setIndexQuotes] = useState([]);
   const [currencyQuotes, setCurrencyQuotes] = useState([]);
@@ -100,6 +113,15 @@ export default function App() {
   // kept. Re asking for them on every boot attempt was three requests per cycle that
   // could only ever return the same answer.
   const listsRef = useRef(null);
+
+  // The freshness map behind what is currently rendered. The watcher compares the whole
+  // map, so a session gained by any single exchange is enough to trigger a reload.
+  const seenRef = useRef(null);
+
+  // The freshness map behind what is rendered, as an object. A forecast compares against
+  // this ticker's own entry, never against the newest date on screen: those differ
+  // legitimately, because one exchange can publish a session before another.
+  const seenMapRef = useRef(null);
 
   /*
     Try to load everything the page needs. Returns whether it succeeded.
@@ -138,12 +160,12 @@ export default function App() {
       const { indexSymbols, currencySymbols, marketSymbols } = listsRef.current;
 
       /*
-        Probe with one request before asking for twelve.
+        Ask one symbol before asking fourteen.
 
-        The option lists answer normally during a sync, so the only way to find out
-        whether the database holds rows is to ask for some. Asking for all of them meant
-        a dozen requests every three seconds, each rejected, for as long as the first
-        sync took. One probe answers the same question.
+        The freshness map answers even while the backend is fetching, by design, so it
+        cannot say whether the data endpoints are serving yet. One request can. Without
+        it, every retry during a long first sync fired fourteen calls that were all
+        going to be refused, which is the flood this whole change exists to remove.
       */
       const probe = await loadQuotes("index", indexSymbols.slice(0, 1));
       if (probe.length === 0) return false;
@@ -164,6 +186,7 @@ export default function App() {
       setMarketQuotes(mq);
       setDataDate(iq.reduce((latest, q) => (q.date > latest ? q.date : latest), ""));
       setBooted(true);
+      bootedRef.current = true;
       return true;
     } catch {
       return false;
@@ -171,27 +194,56 @@ export default function App() {
   }, []);
 
   /*
-    Load the reference data, then keep it current.
+    Open the page, then keep watching for a newer session.
 
-    This is the only thing that gates the page. The moment the backend has a populated
-    dataset the whole interface appears, filled in and usable, whatever is still being
-    built behind it.
+    Two jobs, one loop.
 
-    It does not stop once loaded. An earlier version did, and the header and the moving
-    bar then froze at whatever the database held the instant the app opened. The daily
-    sync adds a session while the app is running, so a page left open reported a date
-    older than the one on its own chart. Retries are quick until the first success and
-    slow afterwards, and a failed refresh changes nothing on screen, since state is only
-    written when a load actually returns data.
+    Before the page exists, this is the gate. The backend reports itself unavailable for
+    the whole of its startup cycle, so the waiting screen holds until the store is
+    current and the interface can never open on a stale day.
+
+    After that, each pass costs one request: the freshness map for every symbol. The
+    fourteen data calls follow only when that map differs from what is on screen, so a
+    quiet page makes three requests a minute and a session gained by any exchange is
+    picked up within the watch interval.
+
+    A pass that fails leaves the screen exactly as it was, because state is written only
+    when a load actually returns data. When the failure was the backend fetching new
+    rows, the map that follows will differ and the reload happens on its own.
   */
   useEffect(() => {
     let alive = true;
     let timer;
 
     const attempt = async () => {
-      const loaded = await loadReference();
+      let wait = POLL_MS;
+
+      try {
+        const map = await latestSessions();
+        const signature = JSON.stringify(map);
+
+        if (!bootedRef.current) {
+          if (await loadReference()) {
+            seenRef.current = signature;
+            seenMapRef.current = map;
+            wait = WATCH_MS;
+          }
+        } else if (signature !== seenRef.current) {
+          if (await loadReference()) {
+            seenRef.current = signature;
+            seenMapRef.current = map;
+          }
+          wait = WATCH_MS;
+        } else {
+          wait = WATCH_MS;
+        }
+      } catch {
+        // The backend is busy or not up. Ask again shortly and change nothing.
+        wait = POLL_MS;
+      }
+
       if (!alive) return;
-      timer = setTimeout(attempt, loaded ? REFRESH_MS : POLL_MS);
+      timer = setTimeout(attempt, wait);
     };
 
     attempt();
@@ -225,9 +277,22 @@ export default function App() {
         setBand(withPrices(result, drawn));
         setForecasting(false);
 
-        // A forecast proves the backend has fresh rows, so pull the reference data
-        // across at once rather than waiting for the next scheduled refresh.
-        loadReference();
+        /*
+          Reload the panels only when this forecast proves them out of date.
+
+          The band already carries the session it was built on, so the comparison is
+          free: no request is made to discover it.
+
+          Compared against this ticker's own entry in the freshness map, not against the
+          newest date on screen. Those are different things: the header shows the newest
+          session held for any index, so a forecast for a ticker whose exchange has not
+          published yet reports an older date perfectly correctly. Comparing against the
+          header fired a fourteen request reload on every press.
+        */
+        const known = seenMapRef.current ? seenMapRef.current[symbol] : null;
+        if (result.based_on_date && known && result.based_on_date !== known) {
+          loadReference();
+        }
       } catch {
         /*
           Every failure keeps this dialog, and this dialog always has Cancel.

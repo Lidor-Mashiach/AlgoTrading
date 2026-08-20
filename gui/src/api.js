@@ -73,6 +73,18 @@ export function listMarket() {
 }
 
 /*
+  The newest stored session for every symbol, in one call.
+
+  Watching a single symbol is not enough. Every exchange publishes on its own schedule,
+  so Tel Aviv can gain a session while New York has not, and a page watching only New
+  York would leave the side panel stale for hours. This covers all of them at the cost
+  of one request, which is what makes it cheap enough to ask often.
+*/
+export function latestSessions() {
+  return request("/latest").then((r) => r.data || {});
+}
+
+/*
   Only the daily horizon carries a real price series.
 
   The weekly and monthly tables hold one row per trading day, and their close columns
