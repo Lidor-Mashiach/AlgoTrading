@@ -21,13 +21,18 @@ const POLL_MS = 3000;
 /*
   How often the page asks whether a newer session exists, once it is up.
 
-  Twenty seconds, and a single request. The earlier version reloaded all fourteen symbols
-  every two minutes, which was both too much traffic and too slow to notice anything: it
-  flooded the log while still taking up to two minutes to see a session that had just
-  landed. Asking one symbol for its latest date costs almost nothing, so it can be asked
-  often, and the fourteen only follow when that date has actually moved.
+  Five minutes, and a single request.
+
+  The backend checks Yahoo once an hour, so at most one of these passes in twelve finds
+  anything. Twenty seconds meant a hundred and eighty passes to catch one event, which
+  was work done for its own sake.
+
+  It is not simply set to an hour to match, because the two timers are independent: a
+  page that asks on the hour can land moments before the backend does, and would then
+  show yesterday for the best part of an hour. Five minutes bounds that at five, for
+  twelve requests an hour against a local database.
 */
-const WATCH_MS = 20000;
+const WATCH_MS = 5 * 60 * 1000;
 
 /*
   Fill in any band price the API left empty.
