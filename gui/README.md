@@ -29,7 +29,7 @@ This directory owns everything a person sees. It is a **single page** that fits 
 
 **The chart is the only bright surface.** The shell is slate and the chart is white. The eye lands on the forecast before it lands on anything else, which is the one thing this page exists to show.
 
-**Everything that is not the chart lives in one column.** The controls used to sit in a full width strip above the plot, spending a whole band of the page on two dropdowns and a button, while the reference column ran out halfway down and left dead space under it. Both are the same problem and one column solves it.
+**Everything that is not the chart lives in one column.** The selectors, the Forecast button and the reference panels share the right hand column, so the chart keeps the full width of the page and the column fills top to bottom.
 
 **The page appears the moment a dataset exists.** Reference data is the only thing that gates it. Whatever is still being built behind the scenes, the interface is up, filled in and usable.
 
@@ -47,7 +47,7 @@ This directory owns everything a person sees. It is a **single page** that fits 
 | An explicit currency display list | The backend syncs more pairs than are worth showing, so `CURRENCY_DISPLAY` in `catalog.js` decides which reach the panel |
 | Real `.ico` and PNG icons | An inline SVG covers the tab only. Chrome reads a genuine `.ico` for the application window and manifest PNGs for the taskbar tile |
 | Mark colours in the markup, not in CSS | A `fill` rule on `.mark rect` beats the presentation attribute and repaints all three candles in one colour, which turns the mark back into a signal strength icon |
-| A `?v=` on every icon URL | Chrome keeps favicons in a database inside its user data directory, far longer than an ordinary asset. Replacing the file left the old picture in the title bar until that directory was deleted by hand |
+| A `?v=` on every icon URL | Chrome keeps favicons in a database inside its user data directory, far longer than an ordinary asset. A different URL is a different cache entry, so raising the number is what makes a new icon appear |
 | Reference lists fetched, never hardcoded | Adding a ticker in `backend/config.json` makes it appear here with no edit to this directory |
 
 ---
@@ -91,13 +91,13 @@ Both paths listen on **5173** and both forward `/api` to the REST API on `127.0.
 
 ## 📈 Reading the Chart
 
-The chart draws only after **Forecast** is pressed. Before that it holds an empty panel, because a chart with no forecast on it would be answering a question nobody asked.
+The chart draws only after **Forecast** is pressed. Until then it holds an empty panel, because a chart with no forecast on it would be answering a question nobody asked.
 
 Hovering a **market** row explains what the number means and which direction is which, because a yield or an index is only useful to someone who already knows how to read it. The hint is anchored by its right edge to the row and opens leftward, which is what stops it collapsing into a one word column near the edge of the window.
 
 **The candle readout is pinned, not floating.** It sits in the strip above the plot, on the right, and shows the latest candle until the pointer picks another. A box that followed the pointer had to land somewhere, and every somewhere was on top of the chart it was describing. Flipping it above or below only changed which part got covered.
 
-Hovering changes the readout and nothing else. An earlier version also lifted the whole column under the pointer, which put a grey block over the chart to say something the readout was already saying. The labels are written out as `Open`, `Close` and `Daily change`, and the last of those follows the horizon, because the move inside a candle is a day, a week or a month depending on which one is selected.
+Hovering changes the readout and nothing else, so nothing is ever painted over the chart to repeat what the readout already says. The labels are written out as `Open`, `Close` and `Daily change`, and the last of those follows the horizon, because the move inside a candle is a day, a week or a month depending on which one is selected.
 
 The **Candles** and **Line** control sits at the top left, in a strip the chart reserves for it, clear of the forecast band and its labels on the right.
 
@@ -179,19 +179,19 @@ Two floating dialogs, and the difference between them is who may walk away.
 
 **The header reports the last stored session, with its weekday.** It is the only status the interface shows, and it is a fact about the market rather than about the software.
 
-**The reference data is refreshed, not loaded once.** An earlier version stopped polling on the first success, so the header and the moving bar froze at whatever the database held the instant the app opened. The daily sync adds a session while the app is running, and a page left open then reported a date older than the one on its own chart. Retries are quick until the first success and slow afterwards, and a successful forecast triggers a refresh straight away, because it proves fresh rows exist.
+**The reference data is refreshed, not loaded once.** The sync adds a session while the app is running, so the watcher keeps asking: quickly until the page opens, then once every five minutes. It reloads when the freshness map changes, and also whenever the map holds a newer index session than the header shows, which corrects a screen that fell behind for any reason. A successful forecast triggers a refresh straight away when the session it was built on differs from the one on record.
 
 **The controls never scroll away.** The right column is a two row grid: the selectors and the Forecast button are pinned, and only the reference panels below them scroll when the window is short.
 
-**The boot screen replaces the interface rather than covering it.** `App` returns it and nothing else while `booted` is false, so a partly loaded page is not hidden, it does not exist. An earlier version rendered the full shell with every panel reading "Waiting for data", which looked like broken software rather than software that was starting.
+**The boot screen replaces the interface rather than covering it.** `App` returns it and nothing else while `booted` is false, so a partly loaded page is not hidden, it does not exist.
 
 **Success means data, not a response.** An empty ticker list, or a set of symbols that all failed, is a database that exists but is not populated yet, and that is still a reason to wait.
 
 **One probe per cycle, not twelve.** The option lists answer normally during a sync, so the only way to learn whether the database holds rows is to ask for some. The lists are fetched once and kept, and each retry asks a single ticker. A first sync can take minutes, and fifteen rejected requests every three seconds for all of it was noise with no purpose.
 
-**Every failure is treated identically on purpose.** A reader does not care whether the answer was `503` because a sync is running or `404` because a table is empty. An earlier version recognised only `503` and let every other case through to a shell with nothing in it.
+**Every failure is treated identically on purpose.** A reader does not care whether the answer was `503` because a sync is running or `404` because a table is empty, so every one of them counts as "not ready yet" and the page keeps waiting.
 
-> ⚠️ **A forecast never raises the boot screen.** A forecast during a pipeline run answers `503`, and treating that as a sync once replaced the cancellable dialog with one that had no way out, half a second after the button was pressed. Since the interface only exists after boot, the two can no longer coexist at all.
+> ⚠️ **A forecast never raises the boot screen.** A forecast during a pipeline run answers `503`, and that stays inside the forecast dialog, which always has a Cancel. The boot screen exists only before the interface does, so the two can never appear together.
 
 Three different signals mean the same thing to a reader, so `api.js` folds them into one vocabulary rather than letting three components each re read HTTP details:
 

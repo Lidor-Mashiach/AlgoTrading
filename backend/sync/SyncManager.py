@@ -108,35 +108,6 @@ class SyncManager:
 
         return frames
 
-    def previous_closed_trading_date(self, ticker: str):
-        """
-        The most recent trading day that has finished.
-
-        Decided by comparing dates, not by reading marketState.
-
-        marketState describes the market right now and says nothing about which day the
-        last row belongs to, so a rule built on it drops whatever happens to sit at the
-        end of the frame. Before the opening bell Yahoo has not written a row for today
-        yet, and that rule then discarded the previous day: a session that had closed
-        hours earlier. Comparing dates cannot make that mistake, because it looks at
-        what it is about to drop.
-        """
-        df = yf.download(
-            ticker,
-            period="10d",
-            interval="1d",
-            progress=False,
-            auto_adjust=False
-        )
-
-        if df.empty:
-            return None
-
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = df.columns.get_level_values(0)
-
-        return self.last_finished_session(ticker, df.dropna(subset=["Close"]))
-
     def last_finished_session(self, ticker: str, df):
         """
         The newest finished session in a frame that has already been fetched.

@@ -31,7 +31,7 @@ sync (blocking)  →  refresh_model (background thread)  →  scheduler (main th
 
 1. **Sync.** For each ticker, compare the newest stored candle against yfinance. Current → no download.
 2. **Refresh.** Call `train_service.train_if_needed()` on a **daemon thread** and return immediately. The main loop never blocks on training.
-3. **Schedule.** `sync_scheduler` runs on the **main thread**, sleeping until `sync_time` and repeating forever.
+3. **Schedule.** `sync_scheduler` runs on the **main thread**, sleeping one hour between checks and repeating forever.
 
 > ⚠️ The scheduler occupies the main thread by design. Were `main()` to return, the interpreter would exit and take every daemon thread with it — including the one that is training.
 
@@ -133,7 +133,7 @@ yf_latest = tickers_status[ticker]["yf_latest"]   # SyncManager's last CLOSED se
 ticker_df = ticker_df[ticker_df.index <= yf_latest]
 ```
 
-Mid-session, yfinance's daily download includes *today's unfinished candle*. Rather than compare against a wall-clock date (which trips over weekends, holidays, and pre-market fetches), [`SyncManager.previous_closed_trading_date()`](../sync/SyncManager.py) asks yfinance for the trailing 10 days and takes the session before the last one with a non-null close, and [`Tickers_EOD_Manager`](../eod_data/Ticker_EOD_Manager.py) trims every ticker to that date before extraction. Because all three horizons are derived from the same trimmed daily rows, one guard at the daily level protects every horizon.
+Mid-session, yfinance's daily download includes *today's unfinished candle*. [`SyncManager.last_finished_session()`](../sync/SyncManager.py) reads the trailing 10 days that `download_recent` fetched in bulk and returns the newest session that has actually closed, judged against the ticker's own exchange clock rather than a wall-clock date, which is what keeps weekends, holidays and pre-market fetches from confusing it. [`Tickers_EOD_Manager`](../eod_data/Ticker_EOD_Manager.py) then trims every ticker to that date before extraction. Because all three horizons are derived from the same trimmed daily rows, one guard at the daily level protects every horizon.
 
 ---
 
@@ -162,8 +162,7 @@ All of it in [`../config.json`](../config.json):
     "currencies": ["USDILS=X", "EURILS=X", "USDEUR=X", "EURUSD=X"],
     "horizons": ["daily", "weekly", "monthly"],
     "periods": [20, 50, 100, 150, 200],
-    "db_name": "backend/database.db",
-    "sync_time": { "hour": 7, "minute": 0 }
+    "db_name": "backend/database.db"
   },
   "rest_api_settings": { "host": "127.0.0.1", "port": 8000 }
 }

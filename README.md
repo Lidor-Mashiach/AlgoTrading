@@ -117,7 +117,7 @@ The REST surface is listed in [`backend/docs/RESTAPI.md`](backend/docs/RESTAPI.m
 
 1. **Sync (blocking, fast).** Compares each ticker's latest stored candle against yfinance. Already current → no download.
 2. **Refresh (background).** Hands off to `train_service.train_if_needed()` on a daemon thread and returns immediately, so nothing blocks.
-3. **Schedule (main thread).** Sleeps until the configured `sync_time` and repeats forever.
+3. **Schedule (main thread).** Sleeps one hour, then repeats forever.
 
 > ⚠️ The scheduler occupies the **main** thread by design. Were `main()` to return, the interpreter would exit and take every daemon thread with it — including the one that is training.
 

@@ -171,34 +171,6 @@ class TickerDB:
         df = self.get_data_as_pd(horizon, start_date, limit)
         return [Ticker_EOD(ticker=self.ticker, date=str(date), features=row.to_dict()) for date, row in df.iterrows()]
 
-    def add_row(self, date: str, features: dict, auto_commit: bool = True):
-        # Its own connection, like every other query method. This used to reuse the one
-        # opened in __init__, which that constructor closes before it returns, so any
-        # call raised "Cannot operate on a closed database".
-        connection = sqlite3.connect(self.db_name)
-
-        try:
-            cursor = connection.cursor()
-            for table, cols in [
-                (self.daily_table, self.DAILY_COLS),
-                (self.weekly_table, self.WEEKLY_COLS),
-                (self.monthly_table, self.MONTHLY_COLS),
-            ]:
-                row = {col: features.get(col) for col in cols}
-                placeholders = ", ".join("?" for _ in cols)
-                quoted_table = self._quote_identifier(table)
-                col_names = ", ".join(self._quote_identifier(col) for col in cols)
-                cursor.execute(f"""
-                    INSERT OR REPLACE INTO {quoted_table} ("date", {col_names})
-                    VALUES (?, {placeholders})
-                """, [date] + list(row.values()))
-
-            if auto_commit:
-                connection.commit()
-
-        finally:
-            connection.close()
-
     def add_dataframe(self, df: pd.DataFrame):
         connection = sqlite3.connect(self.db_name)
 
@@ -265,13 +237,3 @@ class TickerDB:
             # The connection opened above, not the one from __init__. Closing the wrong
             # one left this one open until the garbage collector happened to reach it.
             connection.close()
-
-    def close(self) -> None:
-        """
-        Release the connection opened during initialisation.
-
-        Every query method opens and closes a connection of its own, so there is nothing
-        else to release. This exists because TickersDBManager.close() calls it, and
-        without it that call raised AttributeError. Safe to call more than once.
-        """
-        self.connection.close()

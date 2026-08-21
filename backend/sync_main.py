@@ -117,14 +117,6 @@ def refresh_model():
                 "(poll ai/utils/model_status.is_ready() for readiness)")
 
 
-def close_db(db_manager):
-    logger.section("Closing Database Connection")
-
-    db_manager.close()
-
-    logger.success("Database connection closed successfully")
-
-
 # How long to wait between checks. Hourly, not once a day.
 #
 # A fixed daily time cannot work, because the thing being waited for is not a clock. Yahoo
@@ -134,15 +126,10 @@ def close_db(db_manager):
 # day behind until the next one, which is a full day later.
 #
 # Checking every hour bounds that gap at an hour. Each ticker is still judged against its
-# own exchange clock inside previous_closed_trading_date, so an hourly check is not a
+# own exchange clock inside last_finished_session, so an hourly check is not a
 # blunt instrument: it is simply asking often enough that whichever exchange publishes
 # next is picked up promptly.
 SYNC_INTERVAL_SECONDS = 60 * 60
-
-
-def seconds_until_next_sync(hour=None, minute=None):
-    """Kept for callers that still pass a time of day. The interval is fixed now."""
-    return SYNC_INTERVAL_SECONDS
 
 
 def run_sync_cycle(sync_manager, db_manager, verbose=True, hold_clients=False):
@@ -197,7 +184,7 @@ def run_sync_cycle(sync_manager, db_manager, verbose=True, hold_clients=False):
     return updated
 
 
-def sync_scheduler(sync_manager, db_manager, sync_time=None):
+def sync_scheduler(sync_manager, db_manager):
     # The clock starts when the system does. A machine switched on at 14:20 checks at
     # 15:20, not at some fixed hour it may never be running for.
     logger.info(f"Checking every {SYNC_INTERVAL_SECONDS // 60} minutes for newly published sessions")
@@ -218,7 +205,7 @@ def sync_scheduler(sync_manager, db_manager, sync_time=None):
 
 def main():
     logger.section("Loading Configuration")
-    tickers, supporting_tickers, currencies ,horizons, periods, db_name, sync_time = ConfigLoader.load_prediction_settings()
+    tickers, supporting_tickers, currencies ,horizons, periods, db_name = ConfigLoader.load_prediction_settings()
 
     logger.info(f"Database name: {db_name}")
     logger.info(f"Tickers: {', '.join(tickers)}")
@@ -244,7 +231,7 @@ def main():
     # If main() returned here, Python would exit and instantly kill every daemon
     # thread - including the background model refresh. That is why no training
     # ever ran: the thread was killed a millisecond after it started.
-    sync_scheduler(sync_manager, db_manager, sync_time)
+    sync_scheduler(sync_manager, db_manager)
 
 
 if __name__ == "__main__":

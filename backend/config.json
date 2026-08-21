@@ -5,11 +5,7 @@
     "currencies": ["USDILS=X", "EURILS=X", "USDEUR=X", "EURUSD=X"],
     "horizons": ["daily", "weekly", "monthly"],
     "periods": [20, 50, 100, 150, 200],
-    "db_name": "backend/database.db",
-    "sync_time": {
-      "hour": 7,
-      "minute": 0
-    }
+    "db_name": "backend/database.db"
   },
   "rest_api_settings": {
     "host": "127.0.0.1",

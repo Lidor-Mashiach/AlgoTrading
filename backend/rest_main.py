@@ -12,7 +12,7 @@ from utils.ConsoleLogger import ConsoleLogger
 logger = ConsoleLogger(caller="rest_main")
 
 host, port = ConfigLoader.load_rest_settings()
-tickers, supporting_tickers, currencies, horizons, periods, db_name, sync_time = ConfigLoader.load_prediction_settings()
+tickers, supporting_tickers, currencies, horizons, periods, db_name = ConfigLoader.load_prediction_settings()
 db_manager = TickersDBManager(db_name, tickers + supporting_tickers + currencies, supporting_tickers, periods)
 
 app = FastAPI(title="Ticker Forecast API", description="REST API for retrieving ticker data, supporting ticker data, currency data, and forecasts.", version="1.0.0")
@@ -86,7 +86,7 @@ def get_market_data(symbol: str, horizon: str, request: Request, supported_symbo
 
 
 @app.get("/api/latest", summary="Latest stored session per symbol", description="Returns the most recent stored date for every tracked symbol, in one call.", response_description="A map of symbol to its latest stored date.")
-def latest_sessions(request: Request) -> dict:
+def latest_sessions() -> dict:
     """
     The newest stored date for every symbol the system tracks.
 
